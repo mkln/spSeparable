@@ -15,8 +15,9 @@ colnames(coords) <- c("Var1","Var2")
 nr <- nrow(coords)
 
 
-# lmc data
+# separable data generation (matrix normal)
 Sigma <- solve(rWishart(1, q+1, diag(q))[,,1])
+Omega <- cov2cor(Sigma)
 A <- t(chol(Sigma))
 custom_dag <- spiox::dag_vecchia(coords, 15, TRUE)
 
@@ -31,7 +32,7 @@ L <- t(chol( C ))
 Y <- L %*% U %*% t(A)
 
 
-m_nn <- 40
+m_nn <- 20
 mcmc <- 2000
 
 # import this function from spiox package
@@ -42,42 +43,6 @@ custom_dag <- spiox::dag_vecchia(coords, m_nn, TRUE)
 # fix everything but the first row here to do so
 theta <- c(50, 1, 0.5, 0)
 sample_theta <- c(1, 0, 0, 0)
-
-spseparable_logdens(Y, coords, custom_dag, theta, Sigma)
-
-MN::dmn(Y, matrix(0, nr, q), U=exp(- 50 * as.matrix(dist(coords))), V=Sigma, logged = T)
-
-# Matrix-normal log-density using row whitener H (t(H) %*% H = R^{-1})
-# and column whitener AinvT (solve(chol(Sigma))) with known log|R^{-1}|.
-logdmatrixnormal <- function(X, M, H, AinvT, logdetRinv) {
-  n <- nrow(X); q <- ncol(X)
-  if (!all(dim(M) == c(n, q))) stop("M must be n x q")
-  if (!all(dim(H) == c(n, n))) stop("H must be n x n")
-  if (!all(dim(AinvT) == c(q, q))) stop("AinvT must be q x q")
-  Z <- H %*% (X - M) %*% AinvT                     # = (I⊗H) vec(X-M) then column whiten
-  quad <- sum(Z * Z)                               # Frobenius norm squared
-  logdetSigma <- -2 * sum(log(diag(AinvT)))        # since AinvT = chol(Sigma)^{-1}
-
-  colc <- -n/2 * logdetSigma
-  rowc <- 0.5 * q * logdetRinv
-  cc <- -n * q * log(2 * pi)/2
-  print(c(cc, rowc, colc, -0.5*quad))
-  #return(-0.5 * (n * q * log(2 * pi) + n * logdetSigma) + 0.5 * q * logdetRinv - 0.5 * quad)
-  return(cc + rowc + colc - 0.5 * quad)
-}
-
-# Zero-mean convenience
-logdmatrixnormal0 <- function(X, H, AinvT, logdetRinv) {
-  logdmatrixnormal(X, M = matrix(0, nrow(X), ncol(X)), H = H, AinvT = AinvT, logdetRinv = logdetRinv)
-}
-logdmatrixnormal0(Y, H, solve(chol(Sigma)), 2*sum(log(diag(H))))
-
-
-
-
-
-
-
 
 system.time({
   spsep_out <- spseparable_response(Y, coords, custom_dag, theta, sample_theta,
@@ -126,6 +91,8 @@ plot_spsep <- function(spsep_out, perc_show=0.75){
 spsep_out %>% plot_spsep(0.5)
 
 # zero distance correlation
-Omega_sep <- spspsep_out$Sigma %>% apply(3, \(s) cov2cor(s)) %>% array(dim=c(q,q,mcmc))
+Omega_sep <- spsep_out$Sigma %>% apply(3, \(s) cov2cor(s)) %>% array(dim=c(q,q,mcmc))
 
 Omega_sep[2,3,] %>% plot(type='l')
+
+Omega_sep %>% apply(1:2, mean)

@@ -174,7 +174,8 @@ inline void Separable::sample_iwishart(){
   int n = Y_.n_rows;
   int q = Y_.n_cols;
   arma::mat HY = gp.H_times_A(Y_);
-  arma::mat Smean = n * arma::cov(HY) + S0;
+  
+  arma::mat Smean = S0 + HY.t() * HY;
   arma::mat Q_mean_post = arma::inv_sympd(Smean);
   double df_post = n + n0;
   

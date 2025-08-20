@@ -75,3 +75,7 @@ spseparable_response <- function(Y, coords, custom_dag, theta_start, sampling, S
     .Call(`_spSeparable_spseparable_response`, Y, coords, custom_dag, theta_start, sampling, Sigma_start, mcmc, print_every, dag_opts, upd_Sigma, upd_theta, num_threads)
 }
 
+spseparable_logdens <- function(Y, coords, custom_dag, theta, Sigma) {
+    .Call(`_spSeparable_spseparable_logdens`, Y, coords, custom_dag, theta, Sigma)
+}
+

@@ -2,31 +2,6 @@
 #include "daggp.h"
 #include "ramadapt.h"
 
-inline arma::mat riwishart(const int v, const arma::mat& S) {
-  const int p = S.n_rows;
-  if (v <= p - 1) Rcpp::stop("Degrees of freedom too small");
-  
-  arma::mat Ls;
-  if (!arma::chol(Ls, S, "lower")) Rcpp::stop("S not SPD");
-  
-  arma::mat L = arma::solve(arma::trimatl(Ls), arma::eye(p,p));
-  
-  arma::mat T(p,p,arma::fill::zeros);
-  for (int i=0; i<p; i++) {
-    T(i,i) = std::sqrt(R::rchisq(v - i));
-    for (int j=0; j<i; j++) {
-      T(i,j) = R::rnorm(0.0, 1.0);
-    }
-  }
-  
-  arma::mat A = L * T;
-  arma::mat W = A * A.t();
-  
-  arma::mat Ainv = arma::solve(arma::trimatl(A), arma::eye(p,p));
-  arma::mat Sigma = Ainv.t() * Ainv;
-  return Sigma;
-}
-
 class Separable {
 public:
   // A: q x q. theta: 4 x q with rows (phi, sigmasq, nu, tausq). gps: size q.
@@ -92,15 +67,14 @@ public:
   double logdens(const DagGP& gp) const {
     // u = vec(Y * A^{-T})
     arma::mat AinvT_ = arma::inv(arma::trimatu(arma::chol(Sigma_, "upper")));
-    double logdetAinv_ = arma::accu(log(AinvT_.diag()));
-    arma::mat HW = gp.H * (Y_ * AinvT_);
+    double logdetSigma = -2*arma::accu(log(AinvT_.diag()));
+    arma::mat HW = gp.H * Y_ * AinvT_;
     double quad = arma::accu(arma::square(HW)); 
     
-    // log|R| term: R^{-1} = H^T H, precision_logdeterminant = log|R^{-1}|
-    const double logdetR = -static_cast<double>(q) * gp.precision_logdeterminant;
-    const double logdetSigma = -2.0 * static_cast<double>(n) * logdetAinv_ + logdetR;
-    const double cst = static_cast<double>(n * q) * std::log(2.0 * M_PI);
-    return -0.5 * (cst + logdetSigma + quad);
+    const double c = -0.5 * double(n*q) * std::log(2.0 * M_PI);
+    const double rowC = +0.5 * double(q) * gp.precision_logdeterminant; 
+    const double colC = -0.5 * double(n) * logdetSigma;
+    return c + rowC + colC - 0.5 * quad;
   }
   
   void init_adapt();
@@ -151,7 +125,6 @@ inline void Separable::init_adapt(){
   
 }
 
-// single θ-block Metropolis update (one GP shared across outcomes)
 inline void Separable::upd_theta_metrop() {
   arma::vec cur = theta_(which_theta_elem);     // subset to updated elements
   
@@ -200,12 +173,13 @@ inline void Separable::upd_theta_metrop() {
 inline void Separable::sample_iwishart(){
   int n = Y_.n_rows;
   int q = Y_.n_cols;
-  
-  // scatter matrix
   arma::mat HY = gp.H_times_A(Y_);
-  arma::mat S_post = S0 + HY.t() * HY;
+  arma::mat Smean = n * arma::cov(HY) + S0;
+  arma::mat Q_mean_post = arma::inv_sympd(Smean);
+  double df_post = n + n0;
   
-  int nu_post = n0 + n;
-  
-  Sigma_ = riwishart(nu_post, S_post);
+  arma::mat Q = arma::wishrnd(Q_mean_post, df_post);
+  arma::mat Si = arma::chol(Q, "lower");
+  arma::mat S = arma::inv(arma::trimatl(Si));
+  Sigma_ = S.t() * S;
 }

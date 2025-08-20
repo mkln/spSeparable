@@ -144,3 +144,22 @@ Rcpp::List spseparable_response(const arma::mat& Y,
   );
   
 }
+
+// [[Rcpp::export]]
+double spseparable_logdens(const arma::mat& Y, 
+                                const arma::mat& coords,
+                                
+                                const arma::field<arma::uvec>& custom_dag,
+                                
+                                arma::vec theta,
+                                const arma::mat& Sigma){
+  
+  
+  unsigned int q = Y.n_cols;
+  unsigned int n = Y.n_rows;
+  
+  Separable spsep(Y, coords, Sigma, theta, theta, custom_dag, 0, 1);
+  
+  return spsep.logdens(spsep.gp);
+}
+

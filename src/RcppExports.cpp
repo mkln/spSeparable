@@ -67,11 +67,27 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// spseparable_logdens
+double spseparable_logdens(const arma::mat& Y, const arma::mat& coords, const arma::field<arma::uvec>& custom_dag, arma::vec theta, const arma::mat& Sigma);
+RcppExport SEXP _spSeparable_spseparable_logdens(SEXP YSEXP, SEXP coordsSEXP, SEXP custom_dagSEXP, SEXP thetaSEXP, SEXP SigmaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type coords(coordsSEXP);
+    Rcpp::traits::input_parameter< const arma::field<arma::uvec>& >::type custom_dag(custom_dagSEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type theta(thetaSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Sigma(SigmaSEXP);
+    rcpp_result_gen = Rcpp::wrap(spseparable_logdens(Y, coords, custom_dag, theta, Sigma));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_spSeparable_Correlationc", (DL_FUNC) &_spSeparable_Correlationc, 5},
     {"_spSeparable_daggp_build", (DL_FUNC) &_spSeparable_daggp_build, 9},
     {"_spSeparable_spseparable_response", (DL_FUNC) &_spSeparable_spseparable_response, 12},
+    {"_spSeparable_spseparable_logdens", (DL_FUNC) &_spSeparable_spseparable_logdens, 5},
     {NULL, NULL, 0}
 };
 

@@ -45,6 +45,29 @@ public:
   std::size_t q, n;
   arma::mat Sigma_;
   
+  // stuff for Beta
+  bool use_covariates = false;
+  arma::mat X_;        // n x p
+  arma::mat Beta_;        // p x q (current draw)
+  arma::mat M0_;       // p x q (defaults to 0)
+  arma::mat V0_inv_;   // p x p (store inverse; defaults to (1e-4) * I)
+  
+  // enable covariates with default M0,V0
+  inline void enable_covariates(const arma::mat& X, int q_outcomes) {
+    // alert flags
+    if (X.n_rows != Y_.n_rows) Rcpp::stop("X must have the same number of rows as Y.");
+    if (q_outcomes != (int)Y_.n_cols) Rcpp::stop("q_outcomes must equal ncol(Y).");
+    
+    use_covariates = true;
+    X_ = X;
+    const int p = X.n_cols;
+    Beta_      = arma::zeros(p, q_outcomes);
+    //priors for beta N(0, 1e4)
+    M0_     = arma::zeros(p, q_outcomes);        // M0 = 0_{p×q}
+    // V0 = 1e4 * I_p  ->  V0^{-1} = 1e-4 * I_p
+    V0_inv_ = 1e-4 * arma::eye(p, p);
+  }
+  
   int n0;
   arma::mat S0;
   
@@ -65,10 +88,12 @@ public:
   int theta_mcmc_counter;
   
   double logdens(const DagGP& gp) const {
-    // u = vec(Y * A^{-T})
+    // use Y - XB, instead of Y if there are covariates
+    const arma::mat Ytilde = use_covariates ? (Y_ - X_ * Beta_) : Y_;
+    
     arma::mat AinvT_ = arma::inv(arma::trimatu(arma::chol(Sigma_, "upper")));
     double logdetSigma = -2*arma::accu(log(AinvT_.diag()));
-    arma::mat HW = gp.H * Y_ * AinvT_;
+    arma::mat HW = gp.H * Ytilde * AinvT_; //using Y - XB
     double quad = arma::accu(arma::square(HW)); 
     
     const double c = -0.5 * double(n*q) * std::log(2.0 * M_PI);
@@ -80,6 +105,7 @@ public:
   void init_adapt();
   void upd_theta_metrop();
   void sample_iwishart();
+  void upd_beta_gibbs(); // update theta -> Sigma -> Beta
   
 };
 
@@ -173,9 +199,11 @@ inline void Separable::upd_theta_metrop() {
 inline void Separable::sample_iwishart(){
   int n = Y_.n_rows;
   int q = Y_.n_cols;
-  arma::mat HY = gp.H_times_A(Y_);
+  //Use (Y - X Beta) instead of Y if there are covariates
+  const arma::mat Ytilde  = use_covariates ? (Y_ - X_ * Beta_) : Y_;
+  const arma::mat HYtilde = gp.H_times_A(Ytilde); 
+  arma::mat Smean = S0 + HYtilde.t() * HYtilde;
   
-  arma::mat Smean = S0 + HY.t() * HY;
   arma::mat Q_mean_post = arma::inv_sympd(Smean);
   double df_post = n + n0;
   
@@ -184,3 +212,27 @@ inline void Separable::sample_iwishart(){
   arma::mat S = arma::inv(arma::trimatl(Si));
   Sigma_ = S.t() * S;
 }
+
+//updating for beta using MNIW conjugacy
+inline void Separable::upd_beta_gibbs() {
+  // Only used if use_covariates == T
+  const arma::mat HX = gp.H_times_A(X_);   // n x p
+  const arma::mat HY = gp.H_times_A(Y_);   // n x q
+  
+  // Recall H'H = R(theta)^{-1}
+  // posterior for Vm^{-1} = V0^{-1} + (HX)'(HX)
+  arma::mat Vm_inv = V0_inv_ + HX.t() * HX;
+  arma::mat U = arma::chol(Vm_inv, "upper");  // Vm_inv = U'U
+  
+  // posterior for Mm = Vm * [ V0^{-1} M0 + (HX)'HY ]
+  arma::mat messyPart = V0_inv_ * M0_ + HX.t() * HY;
+  arma::mat Mm  = arma::solve(arma::trimatl(U.t()),
+                              arma::solve(arma::trimatu(U), messyPart));
+  
+  // Draw Beta|Sigma ~ MN(Mm, Vm, Sigma):  Beta = Mm + L_V Z U_S
+  arma::mat L_V = arma::inv(arma::trimatu(U));          // Vm^{1/2}
+  arma::mat U_S = arma::chol(Sigma_, "upper");          // Sigma^{1/2}
+  arma::mat Z   = arma::randn(L_V.n_rows, U_S.n_cols);
+  Beta_ = Mm + L_V * Z * U_S; //posterior draw for Beta
+}
+//Until here

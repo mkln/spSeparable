@@ -46,8 +46,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // spseparable_response
-Rcpp::List spseparable_response(const arma::mat& Y, const arma::mat& coords, const arma::field<arma::uvec>& custom_dag, arma::vec theta_start, arma::vec sampling, const arma::mat& Sigma_start, int mcmc, int print_every, int dag_opts, bool upd_Sigma, bool upd_theta, int num_threads);
-RcppExport SEXP _spSeparable_spseparable_response(SEXP YSEXP, SEXP coordsSEXP, SEXP custom_dagSEXP, SEXP theta_startSEXP, SEXP samplingSEXP, SEXP Sigma_startSEXP, SEXP mcmcSEXP, SEXP print_everySEXP, SEXP dag_optsSEXP, SEXP upd_SigmaSEXP, SEXP upd_thetaSEXP, SEXP num_threadsSEXP) {
+Rcpp::List spseparable_response(const arma::mat& Y, const arma::mat& coords, const arma::field<arma::uvec>& custom_dag, arma::vec theta_start, arma::vec sampling, const arma::mat& Sigma_start, Rcpp::Nullable<arma::mat> X, int mcmc, int print_every, int dag_opts, bool upd_Sigma, bool upd_theta, int num_threads);
+RcppExport SEXP _spSeparable_spseparable_response(SEXP YSEXP, SEXP coordsSEXP, SEXP custom_dagSEXP, SEXP theta_startSEXP, SEXP samplingSEXP, SEXP Sigma_startSEXP, SEXP XSEXP, SEXP mcmcSEXP, SEXP print_everySEXP, SEXP dag_optsSEXP, SEXP upd_SigmaSEXP, SEXP upd_thetaSEXP, SEXP num_threadsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -57,13 +57,14 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::vec >::type theta_start(theta_startSEXP);
     Rcpp::traits::input_parameter< arma::vec >::type sampling(samplingSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type Sigma_start(Sigma_startSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<arma::mat> >::type X(XSEXP);
     Rcpp::traits::input_parameter< int >::type mcmc(mcmcSEXP);
     Rcpp::traits::input_parameter< int >::type print_every(print_everySEXP);
     Rcpp::traits::input_parameter< int >::type dag_opts(dag_optsSEXP);
     Rcpp::traits::input_parameter< bool >::type upd_Sigma(upd_SigmaSEXP);
     Rcpp::traits::input_parameter< bool >::type upd_theta(upd_thetaSEXP);
     Rcpp::traits::input_parameter< int >::type num_threads(num_threadsSEXP);
-    rcpp_result_gen = Rcpp::wrap(spseparable_response(Y, coords, custom_dag, theta_start, sampling, Sigma_start, mcmc, print_every, dag_opts, upd_Sigma, upd_theta, num_threads));
+    rcpp_result_gen = Rcpp::wrap(spseparable_response(Y, coords, custom_dag, theta_start, sampling, Sigma_start, X, mcmc, print_every, dag_opts, upd_Sigma, upd_theta, num_threads));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -86,7 +87,7 @@ END_RCPP
 static const R_CallMethodDef CallEntries[] = {
     {"_spSeparable_Correlationc", (DL_FUNC) &_spSeparable_Correlationc, 5},
     {"_spSeparable_daggp_build", (DL_FUNC) &_spSeparable_daggp_build, 9},
-    {"_spSeparable_spseparable_response", (DL_FUNC) &_spSeparable_spseparable_response, 12},
+    {"_spSeparable_spseparable_response", (DL_FUNC) &_spSeparable_spseparable_response, 13},
     {"_spSeparable_spseparable_logdens", (DL_FUNC) &_spSeparable_spseparable_logdens, 5},
     {NULL, NULL, 0}
 };

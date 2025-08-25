@@ -14,7 +14,7 @@ daggp_build <- function(coords, dag, phi, sigmasq, nu, tausq, matern = 1L, num_t
 #' Implements an adaptive Metropolis-within-Gibbs sampler for the separable
 #' multivariate Gaussian process response model.
 #' The model assumes
-#' \deqn{ \mathrm{vec}(Y) \sim N\left(0, R \otimes \Sigma \right) }
+#' \deqn{ \mathrm{vec}(Y) \sim N\left(X \beta, R \otimes \Sigma \right) }
 #' where
 #' \itemize{
 #'   \item \eqn{R} is an \eqn{n \times n} spatial correlation matrix (Matérn),
@@ -22,6 +22,9 @@ daggp_build <- function(coords, dag, phi, sigmasq, nu, tausq, matern = 1L, num_t
 #' }
 #'
 #' @param Y \eqn{n \times q} data matrix of outcomes, with \eqn{n} spatial sites and \eqn{q} outcomes.
+#' @param X Optional \eqn{n \times p} covariate matrix. If provided (\eqn{p > 0}),
+#'   the model uses \eqn{Y|\beta, \Sigma \sim MN(X \beta, R_\theta, \Sigma)} and samples \eqn{\beta} by Gibbs.
+#'   The prior is \eqn{\beta|\Sigma \sim MN(0_{p \times q}, 1e4 \cdot I_p, \Sigma)} by default.
 #' @param coords \eqn{n \times d} matrix of spatial coordinates for the \eqn{n} sites.
 #' @param custom_dag Field of index vectors defining the Vecchia approximation
 #'   DAG structure for the sites. Use package \code{spiox} for building the DAG.
@@ -71,8 +74,8 @@ daggp_build <- function(coords, dag, phi, sigmasq, nu, tausq, matern = 1L, num_t
 #' }
 #'
 #' @export
-spseparable_response <- function(Y, coords, custom_dag, theta_start, sampling, Sigma_start, mcmc = 1000L, print_every = 100L, dag_opts = 0L, upd_Sigma = TRUE, upd_theta = TRUE, num_threads = 1L) {
-    .Call(`_spSeparable_spseparable_response`, Y, coords, custom_dag, theta_start, sampling, Sigma_start, mcmc, print_every, dag_opts, upd_Sigma, upd_theta, num_threads)
+spseparable_response <- function(Y, coords, custom_dag, theta_start, sampling, Sigma_start, X = NULL, mcmc = 1000L, print_every = 100L, dag_opts = 0L, upd_Sigma = TRUE, upd_theta = TRUE, num_threads = 1L) {
+    .Call(`_spSeparable_spseparable_response`, Y, coords, custom_dag, theta_start, sampling, Sigma_start, X, mcmc, print_every, dag_opts, upd_Sigma, upd_theta, num_threads)
 }
 
 spseparable_logdens <- function(Y, coords, custom_dag, theta, Sigma) {

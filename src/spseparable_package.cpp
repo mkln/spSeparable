@@ -8,7 +8,7 @@ using namespace std;
 //' Implements an adaptive Metropolis-within-Gibbs sampler for the separable
 //' multivariate Gaussian process response model.
 //' The model assumes
-//' \deqn{ \mathrm{vec}(Y) \sim N\left(0, R \otimes \Sigma \right) }
+//' \deqn{ \mathrm{vec}(Y) \sim N\left(X \beta, R \otimes \Sigma \right) }
 //' where
 //' \itemize{
 //'   \item \eqn{R} is an \eqn{n \times n} spatial correlation matrix (Matérn),
@@ -16,6 +16,9 @@ using namespace std;
 //' }
 //'
 //' @param Y \eqn{n \times q} data matrix of outcomes, with \eqn{n} spatial sites and \eqn{q} outcomes.
+//' @param X Optional \eqn{n \times p} covariate matrix. If provided (\eqn{p > 0}),
+//'   the model uses \eqn{Y|\beta, \Sigma \sim MN(X \beta, R_\theta, \Sigma)} and samples \eqn{\beta} by Gibbs.
+//'   The prior is \eqn{\beta|\Sigma \sim MN(0_{p \times q}, 1e4 \cdot I_p, \Sigma)} by default.
 //' @param coords \eqn{n \times d} matrix of spatial coordinates for the \eqn{n} sites.
 //' @param custom_dag Field of index vectors defining the Vecchia approximation
 //'   DAG structure for the sites. Use package \code{spiox} for building the DAG.
@@ -74,6 +77,7 @@ Rcpp::List spseparable_response(const arma::mat& Y,
                           arma::vec theta_start,
                           arma::vec sampling,
                           const arma::mat& Sigma_start,
+                          Rcpp::Nullable<arma::mat> X = R_NilValue,  // (X can be NULL)
                           
                           int mcmc = 1000,
                           int print_every = 100,
@@ -103,9 +107,26 @@ Rcpp::List spseparable_response(const arma::mat& Y,
   Separable spsep(Y, coords, Sigma_start, theta_start, sampling, custom_dag, dag_opts,
                   num_threads);
   
+  // detect if covariates exists and turn them on with default priors
+  bool haveX = X.isNotNull();
+  arma::mat Xmat;
+  if (haveX) {
+    Xmat = Rcpp::as<arma::mat>(X);
+    if (Xmat.n_cols == 0) haveX = false;
+  }
+  if (haveX) {
+    if (Xmat.n_rows != Y.n_rows) Rcpp::stop("X must have nrow(X) == nrow(Y).");
+    spsep.enable_covariates(Xmat, q);  // sets M0=0, V0_inv=(1e-4)I as default priors of beta
+  }
+  
   // storage
   arma::mat theta = arma::zeros(4, mcmc);
   arma::cube Sigma = arma::zeros(q, q, mcmc);
+  //for Beta - save in dim (p x q x mcmc)
+  arma::cube Bsave;
+  if (spsep.use_covariates){
+    Bsave.set_size(Xmat.n_cols, q, mcmc);
+  } 
   
   if(print_every > 0){
     Rcpp::Rcout << "Starting MCMC" << endl;
@@ -120,8 +141,18 @@ Rcpp::List spseparable_response(const arma::mat& Y,
       spsep.sample_iwishart();
     }
     
+    // sample beta if there are covariates
+    if (spsep.use_covariates){
+      spsep.upd_beta_gibbs();
+    }
+    
     Sigma.slice(m) = spsep.Sigma_;
     theta.col(m) = spsep.theta_;
+    
+    // save for BETA
+    if (spsep.use_covariates){
+      Bsave.slice(m) = spsep.Beta_;
+    }
     
     bool print_condition = (print_every>0);
     if(print_condition){
@@ -137,12 +168,18 @@ Rcpp::List spseparable_response(const arma::mat& Y,
     }
   }
   
-  return Rcpp::List::create(
+  // Adjusted for B (w. condition!)
+  Rcpp::List res = Rcpp::List::create(
     Rcpp::Named("Sigma") = Sigma,
     Rcpp::Named("theta") = theta,
     Rcpp::Named("dag_cache") = spsep.gp.dag_cache
   );
   
+  if (spsep.use_covariates){
+    res["Beta"] = Bsave;  
+  }
+  
+  return res;
 }
 
 // [[Rcpp::export]]
